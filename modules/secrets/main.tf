@@ -1,6 +1,5 @@
 
 
-
 terraform {
   required_providers {
     gitlab = {
@@ -20,16 +19,28 @@ locals {
     secret.name => merge(secret, {
       project=var.gitlab_project.qualname
       environment_scope=try(secret.environment_scope, "*")
+      value=try(
+        data.google_secret_manager_secret_version.secrets[secret.name].secret_data,
+        secret.value
+      )
     })
   }
 }
 
 
-resource "gitlab_project_variable" "plain" {
+data "google_secret_manager_secret_version" "secrets" {
   for_each = {
-    for key, secret in local.secrets:
-    key => secret if secret.kind == "plain"
+    for secret in var.gitlab_project.secrets:
+    secret.name => secret if secret.kind == "google"
   }
+
+  project = each.value.storage.project
+  secret  = each.value.storage.name
+}
+
+
+resource "gitlab_project_variable" "plain" {
+  for_each = local.secrets
 
   project           = each.value.project
   key               = each.value.name
