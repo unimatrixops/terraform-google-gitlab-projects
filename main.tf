@@ -30,7 +30,12 @@ locals {
   # Get a unique list of groups to fetch with the Gitlab provider.
   gitlab_groups   = toset([for x in var.gitlab_projects: x.group])
 
-  gitlab_projects = {for x in var.gitlab_projects: "${x.group}/${x.path}" => x}
+  gitlab_projects = {
+    for x in var.gitlab_projects:
+    "${x.group}/${x.path}" => merge(x, {
+      qualname="${x.group}/${x.path}"
+    })
+  }
 
   terraform_projects = {
     for k, v in local.gitlab_projects:
@@ -111,4 +116,15 @@ resource "google_storage_bucket_iam_policy" "terraform" {
   for_each    = google_storage_bucket.terraform
   bucket      = google_storage_bucket.terraform[each.key].name
   policy_data = data.google_iam_policy.terraform[each.key].policy_data
+}
+
+
+module "secrets" {
+  depends_on  = [gitlab_project.projects]
+  for_each = {for path, project in local.gitlab_projects:
+    path => project
+    if try(project.secrets, []) != []
+  }
+  source = "./modules/secrets"
+  gitlab_project = each.value
 }
