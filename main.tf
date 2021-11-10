@@ -52,10 +52,17 @@ data "gitlab_group" "groups" {
 }
 
 
+module "spec" {
+  source   = "./modules/spec"
+  projects = local.gitlab_projects
+}
+
+
 # Create Gitlab projects in their respective groups. It is assumed that the
 # groups already exist.
 resource "gitlab_project" "projects" {
-  for_each                    = local.gitlab_projects
+  depends_on                  = [module.spec]
+  for_each                    = module.spec.projects
   namespace_id                = data.gitlab_group.groups[each.value.group].id
   path                        = each.value.path
   name                        = each.value.name
@@ -77,6 +84,23 @@ resource "gitlab_project" "projects" {
   only_allow_merge_if_pipeline_succeeds             = true
   only_allow_merge_if_all_discussions_are_resolved  = true
   initialize_with_readme                            = false
+}
+
+
+module "variables" {
+  source      = "./modules/variables"
+  depends_on  = [module.spec, gitlab_project.projects]
+  variables   = [
+    for v in each.value.variables:
+    merge(v, {project_id=each.value.project_id})
+  ]
+
+  for_each    = {
+    for k, v in module.spec.projects:
+    k => merge(v, {
+      project_id=gitlab_project.projects[k].id
+    })
+  }
 }
 
 
