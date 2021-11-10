@@ -87,6 +87,36 @@ resource "gitlab_project" "projects" {
 }
 
 
+resource "gitlab_branch_protection" "mainline" {
+  depends_on                    = [module.spec.projects]
+  project                       = gitlab_project.projects[each.key].id
+  branch                        = "mainline"
+  push_access_level             = "maintainer"
+  merge_access_level            = "maintainer"
+  code_owner_approval_required  = false
+
+  for_each = {
+    for k, v in module.spec.projects:
+    k => v if try(v.kind, "") == "deployable-artifact"
+  }
+}
+
+
+resource "gitlab_branch_protection" "stable" {
+  depends_on                    = [module.spec.projects]
+  project                       = gitlab_project.projects[each.key].id
+  branch                        = "stable"
+  push_access_level             = "no one"
+  merge_access_level            = "maintainer"
+  code_owner_approval_required  = false
+
+  for_each = {
+    for k, v in module.spec.projects:
+    k => v if try(v.kind, "") == "deployable-artifact"
+  }
+}
+
+
 module "variables" {
   source      = "./modules/variables"
   depends_on  = [module.spec, gitlab_project.projects]
