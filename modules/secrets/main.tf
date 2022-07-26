@@ -16,7 +16,7 @@ terraform {
 locals {
   secrets = {
     for secret in var.gitlab_project.secrets:
-    secret.name => merge(secret, {
+    "${try(secret.environment_scope, "*")}/${secret.name}" => merge(secret, {
       project=var.gitlab_project.qualname
       environment_scope=try(secret.environment_scope, "*")
       value=try(
